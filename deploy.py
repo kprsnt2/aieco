@@ -707,6 +707,7 @@ Examples:
     parser.add_argument("--cloud", action="store_true", help="Force cloud GPU mode")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be deployed")
     parser.add_argument("--model-only", action="store_true", help="Only start model server")
+    parser.add_argument("--yes", "-y", action="store_true", help="Auto-confirm (skip prompts, for Jupyter)")
     args = parser.parse_args()
     
     print_banner()
@@ -766,10 +767,19 @@ Examples:
         print("\n" + "="*60)
         if config.estimated_cost_per_hour > 0:
             print(f"💰 COST WARNING: ${config.estimated_cost_per_hour:.2f}/hr while running!")
-        response = input("🚀 Ready to deploy? [Y/n]: ").strip().lower()
-        if response and response != 'y':
-            print("Deployment cancelled.")
-            return
+        
+        # Skip confirmation if --yes flag
+        if args.yes:
+            print("🚀 Auto-confirmed with --yes flag")
+        else:
+            try:
+                response = input("🚀 Ready to deploy? [Y/n]: ").strip().lower()
+                if response and response != 'y':
+                    print("Deployment cancelled.")
+                    return
+            except EOFError:
+                # In Jupyter, input() may fail - auto-confirm
+                print("🚀 Auto-confirmed (Jupyter mode)")
     
     # Deploy!
     deploy(config, dry_run=args.dry_run, model_only=args.model_only)
