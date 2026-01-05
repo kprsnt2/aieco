@@ -408,9 +408,9 @@ def get_deployment_config(mode: DeploymentMode, gpus: List[GPUInfo]) -> Deployme
         },
         DeploymentMode.CLOUD_1X: {
             "models": [
-                {"name": "qwen2.5-72b", "model_id": "qwen2.5-72b", "gpus": "0", "port": 8000}
+                {"name": "glm-4.7-w4a16", "model_id": "glm-4.7-w4a16", "gpus": "0", "port": 8000}
             ],
-            "context": 65536,
+            "context": 262144,  # 256K context on single MI300X
             "cost": 1.99
         },
         DeploymentMode.NVIDIA_8X_A100: {
