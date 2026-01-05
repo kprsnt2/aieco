@@ -168,8 +168,24 @@ def run_cmd(cmd: List[str], timeout: int = 30) -> Optional[str]:
 
 
 def detect_gpus() -> List[GPUInfo]:
-    """Detect available GPUs (AMD or NVIDIA)"""
+    """Detect available GPUs (AMD or NVIDIA) with multiple fallbacks"""
     gpus = []
+    
+    # ===== Check for manual VRAM override =====
+    manual_vram = os.environ.get("AIECO_VRAM_GB")
+    if manual_vram:
+        try:
+            vram = float(manual_vram)
+            print(f"📌 Using manual VRAM override: {vram}GB")
+            gpus.append(GPUInfo(
+                name="Manual GPU",
+                vram_gb=vram,
+                index=0,
+                vendor="NVIDIA"
+            ))
+            return gpus
+        except ValueError:
+            pass
     
     # ===== Try AMD ROCm =====
     rocm_output = run_cmd(["rocm-smi", "--showproductname", "--json"])
@@ -203,7 +219,7 @@ def detect_gpus() -> List[GPUInfo]:
                 pass
         return gpus
     
-    # ===== Try NVIDIA =====
+    # ===== Try NVIDIA nvidia-smi =====
     nvidia_output = run_cmd(["nvidia-smi", "--query-gpu=name,memory.total,index", 
                              "--format=csv,noheader,nounits"])
     if nvidia_output:
@@ -219,7 +235,20 @@ def detect_gpus() -> List[GPUInfo]:
                     ))
         return gpus
     
-    # ===== Fallback: PyTorch =====
+    # ===== Fallback 1: nvidia-smi simple =====
+    simple_output = run_cmd(["nvidia-smi", "-L"])
+    if simple_output and "GPU" in simple_output:
+        # Try to extract basic info
+        print("⚠️ nvidia-smi detected but limited info available")
+        gpus.append(GPUInfo(
+            name="NVIDIA GPU",
+            vram_gb=5.0,  # Assume small partition
+            index=0,
+            vendor="NVIDIA"
+        ))
+        return gpus
+    
+    # ===== Fallback 2: PyTorch =====
     try:
         import torch
         if torch.cuda.is_available():
@@ -231,8 +260,54 @@ def detect_gpus() -> List[GPUInfo]:
                     index=i,
                     vendor="NVIDIA"
                 ))
+            if gpus:
+                print(f"✅ Detected {len(gpus)} GPU(s) via PyTorch")
+                return gpus
     except ImportError:
         pass
+    except Exception as e:
+        print(f"⚠️ PyTorch GPU detection failed: {e}")
+    
+    # ===== Fallback 3: Check CUDA_VISIBLE_DEVICES =====
+    cuda_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    if cuda_devices:
+        device_count = len(cuda_devices.split(","))
+        print(f"⚠️ No GPU detection working, using CUDA_VISIBLE_DEVICES: {cuda_devices}")
+        for i in range(device_count):
+            gpus.append(GPUInfo(
+                name=f"GPU {i}",
+                vram_gb=5.0,  # Conservative default
+                index=i,
+                vendor="NVIDIA"
+            ))
+        if gpus:
+            return gpus
+    
+    # ===== Fallback 4: Prompt user =====
+    print("")
+    print("❌ Could not auto-detect GPU. Please specify manually:")
+    print("   Set AIECO_VRAM_GB environment variable, e.g.:")
+    print("   export AIECO_VRAM_GB=5    # For 5GB VRAM")
+    print("   export AIECO_VRAM_GB=80   # For 80GB A100")
+    print("")
+    
+    try:
+        vram_input = input("Enter your GPU VRAM in GB (e.g., 5, 24, 80) [default=5]: ").strip()
+        vram = float(vram_input) if vram_input else 5.0
+        gpus.append(GPUInfo(
+            name="Manual GPU",
+            vram_gb=vram,
+            index=0,
+            vendor="NVIDIA"
+        ))
+    except (ValueError, EOFError):
+        # Default to 5GB if input fails
+        gpus.append(GPUInfo(
+            name="Default GPU",
+            vram_gb=5.0,
+            index=0,
+            vendor="NVIDIA"
+        ))
     
     return gpus
 
