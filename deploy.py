@@ -29,6 +29,7 @@ class DeploymentMode(Enum):
     CLOUD_8X = "cloud_8x"          # 8x MI300X - Multi-model (GLM + MiniMax)
     CLOUD_4X = "cloud_4x"          # 4x MI300X - Single large model (GLM-4.7)
     CLOUD_1X = "cloud_1x"          # 1x MI300X - Medium model (Qwen-72B)
+    NVIDIA_8X_A100 = "nvidia_8x_a100"  # 8x A100-40GB (320GB) - GLM-4.7 W4A16 🔥
     NVIDIA_A100 = "nvidia_a100"    # Full A100 80GB - Large model
     NVIDIA_A100_40 = "nvidia_a100_40"  # A100 40GB - Medium model
     NVIDIA_CONSUMER = "nvidia_consumer"  # RTX 3090/4090 - Medium model
@@ -71,6 +72,15 @@ MODELS = {
         "dtype": "bfloat16",
         "quantization": "fp8",
         "description": "GLM-4.7 358B - Best for coding, 1M context"
+    },
+    "glm-4.7-w4a16": {
+        "hf_id": "0xSero/GLM-4.7-REAP-50-W4A16",
+        "vram_required": 92,
+        "context": 262144,  # 256K context for safety
+        "tp_size": 4,
+        "dtype": "float16",
+        "quantization": "gptq",  # AutoRound W4A16
+        "description": "GLM-4.7 358B W4A16 - Quantized to 92GB, 256K context 🔥"
     },
     "minimax-m2.1": {
         "hf_id": "MiniMaxAI/MiniMax-M2.1",
@@ -340,7 +350,9 @@ def determine_deployment_mode(gpus: List[GPUInfo]) -> DeploymentMode:
         
         if is_datacenter:
             # Datacenter GPU - use VRAM to determine partition size
-            if total_vram >= 70:
+            if total_vram >= 280 and gpu_count >= 8:
+                return DeploymentMode.NVIDIA_8X_A100  # 8x A100-40GB - GLM-4.7 W4A16!
+            elif total_vram >= 70:
                 return DeploymentMode.NVIDIA_A100  # Full 80GB A100
             elif total_vram >= 35:
                 return DeploymentMode.NVIDIA_A100_40  # 40GB A100 or partition
@@ -400,6 +412,13 @@ def get_deployment_config(mode: DeploymentMode, gpus: List[GPUInfo]) -> Deployme
             ],
             "context": 65536,
             "cost": 1.99
+        },
+        DeploymentMode.NVIDIA_8X_A100: {
+            "models": [
+                {"name": "glm-4.7-w4a16", "model_id": "glm-4.7-w4a16", "gpus": "0,1,2,3,4,5,6,7", "port": 8000}
+            ],
+            "context": 262144,  # 256K context
+            "cost": 0.0  # Depends on cloud
         },
         DeploymentMode.NVIDIA_A100: {
             "models": [
