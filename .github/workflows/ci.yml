@@ -1,0 +1,171 @@
+name: AIEco CI/CD
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main]
+
+env:
+    PYTHON_VERSION: "3.11"
+    NODE_VERSION: "20"
+
+jobs:
+    # Backend Tests
+    backend-test:
+        name: Backend Tests
+        runs-on: ubuntu-latest
+
+        services:
+            redis:
+                image: redis:7
+                ports:
+                    - 6379:6379
+
+            postgres:
+                image: postgres:15
+                env:
+                    POSTGRES_USER: test
+                    POSTGRES_PASSWORD: test
+                    POSTGRES_DB: aieco_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ env.PYTHON_VERSION }}
+                  cache: "pip"
+
+            - name: Install dependencies
+              run: |
+                  cd backend
+                  pip install -r requirements.txt
+                  pip install pytest pytest-cov pytest-asyncio httpx
+
+            - name: Run tests
+              run: |
+                  cd backend
+                  pytest --cov=app --cov-report=xml --cov-report=html
+              env:
+                  DATABASE_URL: postgresql://test:test@localhost:5432/aieco_test
+                  REDIS_URL: redis://localhost:6379
+                  JWT_SECRET_KEY: test-secret-key-for-ci
+
+            - name: Upload coverage
+              uses: codecov/codecov-action@v3
+              with:
+                  files: backend/coverage.xml
+                  fail_ci_if_error: false
+
+    # Backend Lint
+    backend-lint:
+        name: Backend Lint
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ env.PYTHON_VERSION }}
+
+            - name: Install linters
+              run: pip install ruff black isort mypy
+
+            - name: Run Ruff
+              run: ruff check backend/app --ignore E501
+
+            - name: Check formatting
+              run: black --check backend/app
+
+            - name: Check imports
+              run: isort --check-only backend/app
+
+    # Frontend Tests
+    frontend-test:
+        name: Frontend Tests
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "npm"
+                  cache-dependency-path: frontend/chat-app/package-lock.json
+
+            - name: Install Chat App dependencies
+              run: |
+                  cd frontend/chat-app
+                  npm ci || npm install
+
+            - name: Build Chat App
+              run: |
+                  cd frontend/chat-app
+                  npm run build
+
+            - name: Install Dashboard dependencies
+              run: |
+                  cd frontend/dashboard
+                  npm ci || npm install
+
+            - name: Build Dashboard
+              run: |
+                  cd frontend/dashboard
+                  npm run build
+
+    # Docker Build
+    docker-build:
+        name: Docker Build
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Build backend image
+              uses: docker/build-push-action@v5
+              with:
+                  context: ./backend
+                  push: false
+                  tags: aieco-backend:test
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+
+    # Security Scan
+    security:
+        name: Security Scan
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Run Trivy vulnerability scanner
+              uses: aquasecurity/trivy-action@master
+              with:
+                  scan-type: "fs"
+                  scan-ref: "."
+                  severity: "CRITICAL,HIGH"
+                  exit-code: "0" # Don't fail on vulnerabilities for now
+
+    # All checks passed
+    ci-success:
+        name: CI Success
+        needs: [backend-test, backend-lint, frontend-test, docker-build]
+        runs-on: ubuntu-latest
+        steps:
+            - run: echo "All CI checks passed!"

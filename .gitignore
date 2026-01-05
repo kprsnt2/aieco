@@ -1,0 +1,105 @@
+# AIEco - Git Ignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.manifest
+*.spec
+.eggs/
+*.egg-info/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.spyderproject
+.spyproject
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# Build
+dist/
+build/
+*.manifest
+*.spec
+
+# Node.js
+node_modules/
+.npm
+.next/
+out/
+.nuxt/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+
+# Database
+*.db
+*.sqlite3
+data/
+
+# Secrets - NEVER commit these
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+.secrets.baseline
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.docker/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# Documentation builds
+docs/_build/
+site/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local config
+local_config.py
+config.local.py

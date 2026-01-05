@@ -1,0 +1,27 @@
+{
+    "name": "@aieco/sdk",
+    "version": "1.0.0",
+    "description": "JavaScript SDK for AIEco - Private AI Platform",
+    "main": "index.js",
+    "type": "module",
+    "exports": {
+        ".": "./index.js"
+    },
+    "scripts": {
+        "test": "echo \"No tests yet\""
+    },
+    "keywords": [
+        "ai",
+        "llm",
+        "sdk",
+        "glm",
+        "rag",
+        "agents"
+    ],
+    "author": "",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/aieco"
+    }
+}

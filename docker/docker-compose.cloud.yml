@@ -1,0 +1,193 @@
+version: "3.8"
+
+services:
+  # ===========================================
+  # vLLM Model Server (GLM-4.7 358B on 4x MI300X)
+  # ===========================================
+  vllm:
+    image: rocm/vllm:rocm6.2_vllm0.6.4
+    container_name: aieco-vllm
+    runtime: rocm
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ../model-server:/app/model-server
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - VLLM_API_KEY=${VLLM_API_KEY}
+    command: >
+      vllm serve ${CLOUD_MODEL_NAME:-zai-org/GLM-4.7-FP8}
+      --tensor-parallel-size ${CLOUD_TENSOR_PARALLEL_SIZE:-4}
+      --speculative-config.method mtp
+      --speculative-config.num_speculative_tokens 1
+      --tool-call-parser glm47
+      --reasoning-parser glm45
+      --enable-auto-tool-choice
+      --served-model-name ${CLOUD_MODEL_SERVED_NAME:-glm-4.7}
+      --max-model-len ${CLOUD_MAX_MODEL_LEN:-1048576}
+      --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.95}
+      --api-key ${VLLM_API_KEY}
+      --host 0.0.0.0
+      --port 8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aieco-network
+
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: aieco-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aieco}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-aieco}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aieco}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aieco-network
+
+  # ===========================================
+  # Redis Cache
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: aieco-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aieco-network
+
+  # ===========================================
+  # ChromaDB Vector Store
+  # ===========================================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: aieco-chromadb
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "8001:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+    networks:
+      - aieco-network
+
+  # ===========================================
+  # FastAPI Backend
+  # ===========================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: aieco-backend
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-false}
+      - VLLM_API_KEY=${VLLM_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-aieco}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-aieco}
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - VLLM_BASE_URL=http://vllm:8000/v1
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+      vllm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aieco-network
+
+  # ===========================================
+  # Chat App Frontend
+  # ===========================================
+  chat-app:
+    build:
+      context: ../frontend/chat-app
+      dockerfile: Dockerfile
+    container_name: aieco-chat
+    environment:
+      - VITE_API_URL=http://localhost:8080
+      - VITE_WS_URL=ws://localhost:8080
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - aieco-network
+
+  # ===========================================
+  # Dashboard Frontend
+  # ===========================================
+  dashboard:
+    build:
+      context: ../frontend/dashboard
+      dockerfile: Dockerfile
+    container_name: aieco-dashboard
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - aieco-network
+
+networks:
+  aieco-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  chroma_data:

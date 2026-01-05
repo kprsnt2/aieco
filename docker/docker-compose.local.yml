@@ -1,0 +1,134 @@
+version: "3.8"
+
+# Local development with RTX 3050 (6GB) or CPU fallback
+services:
+  # ===========================================
+  # Ollama (Local Model Server)
+  # ===========================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aieco-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    restart: unless-stopped
+    networks:
+      - aieco-local
+
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: aieco-postgres-local
+    environment:
+      POSTGRES_USER: aieco
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: aieco
+    volumes:
+      - postgres_local:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - aieco-local
+
+  # ===========================================
+  # Redis Cache
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: aieco-redis-local
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - aieco-local
+
+  # ===========================================
+  # ChromaDB Vector Store
+  # ===========================================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: aieco-chromadb-local
+    volumes:
+      - chroma_local:/chroma/chroma
+    ports:
+      - "8001:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+    restart: unless-stopped
+    networks:
+      - aieco-local
+
+  # ===========================================
+  # FastAPI Backend (Local Mode)
+  # ===========================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: aieco-backend-local
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - JWT_SECRET_KEY=local-dev-secret-key
+      - DATABASE_URL=postgresql+asyncpg://aieco:localdev@postgres:5432/aieco
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - VLLM_BASE_URL=http://ollama:11434/v1
+      - USE_OLLAMA=true
+      - LOCAL_MODEL_NAME=glm4:9b
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+      - chromadb
+      - ollama
+    volumes:
+      - ../backend:/app
+    restart: unless-stopped
+    networks:
+      - aieco-local
+
+  # ===========================================
+  # Chat App (Dev Mode)
+  # ===========================================
+  chat-app:
+    build:
+      context: ../frontend/chat-app
+      dockerfile: Dockerfile.dev
+    container_name: aieco-chat-local
+    environment:
+      - VITE_API_URL=http://localhost:8080
+      - VITE_WS_URL=ws://localhost:8080
+    ports:
+      - "3000:5173"
+    volumes:
+      - ../frontend/chat-app:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - aieco-local
+
+networks:
+  aieco-local:
+    driver: bridge
+
+volumes:
+  ollama_data:
+  postgres_local:
+  chroma_local:

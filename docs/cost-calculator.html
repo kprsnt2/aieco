@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIEco Cost Calculator - Compare API vs Self-Hosted (2026)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+            min-height: 100vh;
+            color: #e4e4e7;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 2rem;
+        }
+
+        .india-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.2), rgba(19, 136, 8, 0.2));
+            border: 1px solid rgba(255, 153, 51, 0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #a78bfa;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 1rem;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .slider-value {
+            min-width: 100px;
+            text-align: right;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+
+        .result-card.aieco {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2));
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .result-card.india {
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.2), rgba(19, 136, 8, 0.2));
+            border-color: rgba(255, 153, 51, 0.3);
+        }
+
+        .result-card .label {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-card .value {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+
+        .result-card.aieco .value {
+            color: #10b981;
+        }
+
+        .result-card.india .value {
+            color: #ff9933;
+        }
+
+        .savings {
+            background: linear-gradient(135deg, rgba(250, 204, 21, 0.2), rgba(234, 179, 8, 0.2));
+            border: 1px solid rgba(250, 204, 21, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .savings .value {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #facc15;
+        }
+
+        .breakdown {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .breakdown-row .label {
+            color: #888;
+        }
+
+        .breakdown-row .value {
+            font-weight: 500;
+        }
+
+        .note {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 2rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>💰 AIEco Cost Calculator</h1>
+        <p class="subtitle">Compare API costs vs Self-Hosted • January 2026 Pricing</p>
+
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <span class="india-badge">
+                🇮🇳 Includes IndiaAI/AIKosh Subsidized Rates (40% off!)
+            </span>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h2>📊 Your Usage</h2>
+
+                <div class="input-group">
+                    <label>Daily Token Usage (Input + Output)</label>
+                    <div class="slider-container">
+                        <input type="range" id="tokens" min="500000" max="100000000" step="500000" value="5000000">
+                        <span class="slider-value" id="tokensValue">5M</span>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Team Size (Developers)</label>
+                    <div class="slider-container">
+                        <input type="range" id="team" min="1" max="50" value="1">
+                        <span class="slider-value" id="teamValue">1</span>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Primary API Model</label>
+                    <select id="model">
+                        <option value="gpt52">GPT-5.2 ($1.75/$14 per MTok)</option>
+                        <option value="gemini3" selected>Gemini 3 Pro ($2/$12 per MTok)</option>
+                        <option value="opus">Claude Opus 4.5 ($5/$25 per MTok)</option>
+                        <option value="sonnet">Claude Sonnet 4.5 ($3/$15 per MTok)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>☁️ GPU Configuration</h2>
+
+                <div class="input-group">
+                    <label>GPU Provider</label>
+                    <select id="provider">
+                        <option value="indiaai" selected>🇮🇳 IndiaAI (₹67/hr - 40% Subsidy)</option>
+                        <option value="tensorwave">TensorWave ($1.50/GPU/hr)</option>
+                        <option value="vultr">Vultr ($1.85/GPU/hr)</option>
+                        <option value="digitalocean">DigitalOcean ($1.99/GPU/hr)</option>
+                        <option value="runpod">RunPod ($2.99/GPU/hr)</option>
+                        <option value="own">Own Hardware (~$500/mo after initial)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Number of GPUs (AMD MI300X)</label>
+                    <div class="slider-container">
+                        <input type="range" id="gpus" min="1" max="8" value="4">
+                        <span class="slider-value" id="gpusValue">4 GPUs</span>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Running Mode</label>
+                    <select id="mode">
+                        <option value="24x7" selected>24/7 (Always On)</option>
+                        <option value="work">Work Hours (8hr/day)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="results">
+            <div class="result-card">
+                <div class="label">Subscription (Max Plans)</div>
+                <div class="value" id="subCost">$200</div>
+                <div style="font-size: 0.75rem; color: #888; margin-top: 0.25rem;">Rate limited</div>
+            </div>
+            <div class="result-card">
+                <div class="label">API Cost (Monthly)</div>
+                <div class="value" id="apiCost">$0</div>
+                <div style="font-size: 0.75rem; color: #888; margin-top: 0.25rem;">Pay per token</div>
+            </div>
+            <div class="result-card india" id="indiaCard">
+                <div class="label">🇮🇳 IndiaAI Cost</div>
+                <div class="value" id="indiaCost">$0</div>
+                <div style="font-size: 0.75rem; color: #888; margin-top: 0.25rem;">40% subsidy</div>
+            </div>
+            <div class="result-card aieco">
+                <div class="label">AIEco Self-Hosted</div>
+                <div class="value" id="aiecoCost">$0</div>
+                <div style="font-size: 0.75rem; color: #888; margin-top: 0.25rem;">Unlimited usage</div>
+            </div>
+        </div>
+
+        <div class="savings">
+            <div class="label">💸 Your Monthly Savings vs API</div>
+            <div class="value" id="savings">$0</div>
+            <div id="savingsPercent" style="color: #888; margin-top: 0.5rem;">0% savings</div>
+        </div>
+
+        <div class="card">
+            <h2>📋 Detailed Breakdown</h2>
+            <div class="breakdown">
+                <div class="breakdown-row">
+                    <span class="label">Total daily tokens (all users)</span>
+                    <span class="value" id="dailyTotal">0</span>
+                </div>
+                <div class="breakdown-row">
+                    <span class="label">API input cost/month</span>
+                    <span class="value" id="inputCost">$0</span>
+                </div>
+                <div class="breakdown-row">
+                    <span class="label">API output cost/month</span>
+                    <span class="value" id="outputCost">$0</span>
+                </div>
+                <div class="breakdown-row" style="color: #ff9933;">
+                    <span class="label">🇮🇳 IndiaAI monthly (with subsidy)</span>
+                    <span class="value" id="indiaMonthly">$0</span>
+                </div>
+                <div class="breakdown-row">
+                    <span class="label">Selected provider monthly</span>
+                    <span class="value" id="gpuCost">$0</span>
+                </div>
+                <div class="breakdown-row" style="color: #10b981;">
+                    <span class="label">Annual savings vs API</span>
+                    <span class="value" id="annualSavings">$0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card"
+            style="background: linear-gradient(135deg, rgba(255,153,51,0.1), rgba(19,136,8,0.1)); border-color: rgba(255,153,51,0.2);">
+            <h2>🇮🇳 How to Access IndiaAI</h2>
+            <ol style="margin-left: 1.5rem; line-height: 1.8;">
+                <li>Visit <a href="https://indiaai.gov.in" target="_blank"
+                        style="color: #ff9933;">indiaai.gov.in/computing</a></li>
+                <li>Register as Startup / Researcher / Student / MSME</li>
+                <li>Get verified (1-2 days)</li>
+                <li>Access AMD MI300X at ₹67/hr (~$0.80) - 40% subsidy!</li>
+            </ol>
+            <p style="margin-top: 1rem; font-size: 0.9rem; color: #888;">
+                Eligibility: DPIIT startups, researchers, students, MSMEs, government projects
+            </p>
+        </div>
+
+        <p class="note">
+            * Calculations based on January 2026 pricing. GPU costs assume 24/7 operation unless specified.<br>
+            * IndiaAI: ₹67/hr per GPU with 40% government subsidy. • API: 40% input, 60% output tokens assumed.
+        </p>
+    </div>
+
+    <script>
+        const pricing = {
+            gpt52: { input: 1.75, output: 14.00, name: 'GPT-5.2' },
+            gemini3: { input: 2.00, output: 12.00, name: 'Gemini 3 Pro' },
+            opus: { input: 5.00, output: 25.00, name: 'Claude Opus 4.5' },
+            sonnet: { input: 3.00, output: 15.00, name: 'Claude Sonnet 4.5' }
+        };
+
+        const providers = {
+            indiaai: 0.80,      // $0.80/GPU/hr (₹67)
+            tensorwave: 1.50,
+            vultr: 1.85,
+            digitalocean: 1.99,
+            runpod: 2.99,
+            own: 0.02          // ~$500/mo for electricity for 4 GPUs
+        };
+
+        const INDIA_AI_RATE = 0.80; // Always show IndiaAI rate
+
+        function formatNumber(num) {
+            if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+            return num.toString();
+        }
+
+        function formatCurrency(num) {
+            if (num >= 1000000) return '$' + (num / 1000000).toFixed(2) + 'M';
+            if (num >= 1000) return '$' + (num / 1000).toFixed(1) + 'K';
+            return '$' + num.toFixed(0);
+        }
+
+        function calculate() {
+            const tokensPerUser = parseInt(document.getElementById('tokens').value);
+            const team = parseInt(document.getElementById('team').value);
+            const model = document.getElementById('model').value;
+            const provider = document.getElementById('provider').value;
+            const gpus = parseInt(document.getElementById('gpus').value);
+            const mode = document.getElementById('mode').value;
+
+            // Update display values
+            document.getElementById('tokensValue').textContent = formatNumber(tokensPerUser);
+            document.getElementById('teamValue').textContent = team;
+            document.getElementById('gpusValue').textContent = gpus + ' GPUs';
+
+            // Calculate tokens
+            const totalDaily = tokensPerUser * team;
+            const inputTokens = totalDaily * 0.4;
+            const outputTokens = totalDaily * 0.6;
+
+            // API costs (per month = 30 days)
+            const modelPricing = pricing[model];
+            const monthlyInputCost = (inputTokens / 1000000) * modelPricing.input * 30;
+            const monthlyOutputCost = (outputTokens / 1000000) * modelPricing.output * 30;
+            const totalApiCost = monthlyInputCost + monthlyOutputCost;
+
+            // GPU hours per month
+            const hoursPerDay = mode === '24x7' ? 24 : 8;
+            const gpuHoursPerMonth = gpus * hoursPerDay * 30;
+
+            // Provider cost
+            const providerRate = providers[provider];
+            const providerCost = provider === 'own' ? 500 : gpuHoursPerMonth * providerRate;
+
+            // IndiaAI cost (always calculate)
+            const indiaCost = gpuHoursPerMonth * INDIA_AI_RATE;
+
+            // Subscription cost (Claude Max 20x as reference)
+            const subCost = team * 200;
+
+            // Best self-hosted option
+            const bestSelfHosted = Math.min(providerCost, indiaCost);
+
+            // Savings
+            const savings = totalApiCost - bestSelfHosted;
+            const savingsPercent = totalApiCost > 0 ? (savings / totalApiCost) * 100 : 0;
+
+            // Update UI
+            document.getElementById('subCost').textContent = formatCurrency(subCost);
+            document.getElementById('apiCost').textContent = formatCurrency(totalApiCost);
+            document.getElementById('indiaCost').textContent = formatCurrency(indiaCost);
+            document.getElementById('aiecoCost').textContent = formatCurrency(providerCost);
+            document.getElementById('savings').textContent = formatCurrency(Math.max(0, savings));
+            document.getElementById('savingsPercent').textContent =
+                savingsPercent > 0 ? `${savingsPercent.toFixed(0)}% savings` : 'Self-hosting more expensive at this usage';
+
+            // Breakdown
+            document.getElementById('dailyTotal').textContent = formatNumber(totalDaily);
+            document.getElementById('inputCost').textContent = formatCurrency(monthlyInputCost);
+            document.getElementById('outputCost').textContent = formatCurrency(monthlyOutputCost);
+            document.getElementById('indiaMonthly').textContent = formatCurrency(indiaCost) + ' (₹' + Math.round(indiaCost * 83) + 'K)';
+            document.getElementById('gpuCost').textContent = formatCurrency(providerCost);
+            document.getElementById('annualSavings').textContent = formatCurrency(Math.max(0, savings * 12));
+
+            // Show/hide IndiaAI card based on provider
+            const indiaCard = document.getElementById('indiaCard');
+            indiaCard.style.display = provider === 'indiaai' ? 'none' : 'block';
+        }
+
+        // Event listeners
+        document.getElementById('tokens').addEventListener('input', calculate);
+        document.getElementById('team').addEventListener('input', calculate);
+        document.getElementById('model').addEventListener('change', calculate);
+        document.getElementById('provider').addEventListener('change', calculate);
+        document.getElementById('gpus').addEventListener('input', calculate);
+        document.getElementById('mode').addEventListener('change', calculate);
+
+        // Initial calculation
+        calculate();
+    </script>
+</body>
+
+</html>

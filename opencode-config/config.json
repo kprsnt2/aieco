@@ -1,0 +1,60 @@
+{
+  "$schema": "https://opencode.ai/config-schema.json",
+  "profiles": {
+    "cloud": {
+      "name": "GLM-4.7 358B (AMD Cloud)",
+      "provider": "openai-compatible",
+      "baseUrl": "http://YOUR_AMD_CLOUD_IP:8000/v1",
+      "apiKey": "${VLLM_API_KEY}",
+      "model": "glm-4.7",
+      "maxTokens": 32768,
+      "temperature": 0.7,
+      "features": {
+        "streaming": true,
+        "toolCalling": true,
+        "thinking": true
+      }
+    },
+    "local": {
+      "name": "GLM-4 9B (Local RTX 3050)",
+      "provider": "ollama",
+      "baseUrl": "http://localhost:11434/v1",
+      "model": "glm4:9b",
+      "maxTokens": 8192,
+      "temperature": 0.7,
+      "features": {
+        "streaming": true,
+        "toolCalling": true
+      }
+    },
+    "backend": {
+      "name": "AIEco Backend API",
+      "provider": "openai-compatible",
+      "baseUrl": "http://localhost:8080/api/v1",
+      "apiKey": "${AIECO_API_KEY}",
+      "model": "glm-4.7",
+      "maxTokens": 32768,
+      "features": {
+        "streaming": true,
+        "toolCalling": true,
+        "rag": true,
+        "agents": true
+      }
+    }
+  },
+  "defaultProfile": "backend",
+  "mcpServers": [
+    {
+      "name": "aieco-mcp",
+      "description": "AIEco MCP Server with file, shell, and code tools",
+      "url": "http://localhost:8080/mcp",
+      "apiKey": "${AIECO_API_KEY}"
+    }
+  ],
+  "settings": {
+    "editor": "code",
+    "theme": "dark",
+    "autoSave": true,
+    "contextSize": 100000
+  }
+}
