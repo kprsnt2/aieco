@@ -29,9 +29,12 @@ class DeploymentMode(Enum):
     CLOUD_8X = "cloud_8x"          # 8x MI300X - Multi-model (GLM + MiniMax)
     CLOUD_4X = "cloud_4x"          # 4x MI300X - Single large model (GLM-4.7)
     CLOUD_1X = "cloud_1x"          # 1x MI300X - Medium model (Qwen-72B)
-    NVIDIA_A100 = "nvidia_a100"    # A100/H100 - Large model
+    NVIDIA_A100 = "nvidia_a100"    # Full A100 80GB - Large model
+    NVIDIA_A100_40 = "nvidia_a100_40"  # A100 40GB - Medium model
     NVIDIA_CONSUMER = "nvidia_consumer"  # RTX 3090/4090 - Medium model
-    LOCAL_SMALL = "local_small"    # Low VRAM - Small model
+    NVIDIA_SMALL = "nvidia_small"  # 8-16GB VRAM - Small model
+    NVIDIA_TINY = "nvidia_tiny"    # 4-8GB VRAM - Tiny model (Phi-3, Qwen 3B)
+    LOCAL_SMALL = "local_small"    # CPU or very low VRAM
 
 
 @dataclass
@@ -107,12 +110,30 @@ MODELS = {
     },
     "phi-3-mini": {
         "hf_id": "microsoft/Phi-3-mini-4k-instruct",
-        "vram_required": 4,
+        "vram_required": 3,
         "context": 4096,
         "tp_size": 1,
         "dtype": "float16",
         "quantization": None,
-        "description": "Phi-3 Mini - Tiny, 4K context"
+        "description": "Phi-3 Mini 3.8B - Tiny, 4K context (3GB VRAM)"
+    },
+    "qwen2.5-3b": {
+        "hf_id": "Qwen/Qwen2.5-3B-Instruct",
+        "vram_required": 4,
+        "context": 32768,
+        "tp_size": 1,
+        "dtype": "float16",
+        "quantization": None,
+        "description": "Qwen 2.5 3B - Great for 5GB VRAM, 32K context"
+    },
+    "qwen2.5-1.5b": {
+        "hf_id": "Qwen/Qwen2.5-1.5B-Instruct",
+        "vram_required": 2,
+        "context": 32768,
+        "tp_size": 1,
+        "dtype": "float16",
+        "quantization": None,
+        "description": "Qwen 2.5 1.5B - Ultra tiny, 32K context"
     }
 }
 
@@ -237,20 +258,43 @@ def determine_deployment_mode(gpus: List[GPUInfo]) -> DeploymentMode:
         else:
             return DeploymentMode.LOCAL_SMALL
     
-    # NVIDIA detection
+    # NVIDIA detection - check VRAM first for partitioned GPUs
     if vendor == "NVIDIA":
-        if any(x in first_gpu_name for x in ["A100", "H100", "H200"]):
-            return DeploymentMode.NVIDIA_A100
-        elif any(x in first_gpu_name for x in ["3090", "4090", "A6000", "L40"]):
+        # Check for A100/H100 by name
+        is_datacenter = any(x in first_gpu_name for x in ["A100", "H100", "H200", "A10", "L40"])
+        
+        if is_datacenter:
+            # Datacenter GPU - use VRAM to determine partition size
+            if total_vram >= 70:
+                return DeploymentMode.NVIDIA_A100  # Full 80GB A100
+            elif total_vram >= 35:
+                return DeploymentMode.NVIDIA_A100_40  # 40GB A100 or partition
+            elif total_vram >= 16:
+                return DeploymentMode.NVIDIA_CONSUMER  # ~20GB partition
+            elif total_vram >= 8:
+                return DeploymentMode.NVIDIA_SMALL  # ~10GB partition
+            else:
+                return DeploymentMode.NVIDIA_TINY  # 5GB partition
+        
+        # Consumer GPUs
+        if any(x in first_gpu_name for x in ["3090", "4090", "A6000"]):
             return DeploymentMode.NVIDIA_CONSUMER
-        elif total_vram >= 16:
-            return DeploymentMode.NVIDIA_CONSUMER
+        elif any(x in first_gpu_name for x in ["3080", "4080", "3070", "4070"]):
+            return DeploymentMode.NVIDIA_SMALL
+        elif any(x in first_gpu_name for x in ["3060", "4060", "3050", "4050"]):
+            return DeploymentMode.NVIDIA_TINY
     
-    # Fallback based on VRAM
-    if total_vram >= 40:
+    # Fallback based purely on VRAM
+    if total_vram >= 70:
         return DeploymentMode.NVIDIA_A100
+    elif total_vram >= 35:
+        return DeploymentMode.NVIDIA_A100_40
     elif total_vram >= 16:
         return DeploymentMode.NVIDIA_CONSUMER
+    elif total_vram >= 8:
+        return DeploymentMode.NVIDIA_SMALL
+    elif total_vram >= 4:
+        return DeploymentMode.NVIDIA_TINY
     
     return DeploymentMode.LOCAL_SMALL
 
@@ -279,7 +323,7 @@ def get_deployment_config(mode: DeploymentMode, gpus: List[GPUInfo]) -> Deployme
             "models": [
                 {"name": "qwen2.5-72b", "model_id": "qwen2.5-72b", "gpus": "0", "port": 8000}
             ],
-            "context": 65536,  # Conservative for single GPU
+            "context": 65536,
             "cost": 1.99
         },
         DeploymentMode.NVIDIA_A100: {
@@ -289,6 +333,13 @@ def get_deployment_config(mode: DeploymentMode, gpus: List[GPUInfo]) -> Deployme
             "context": 65536,
             "cost": 2.50
         },
+        DeploymentMode.NVIDIA_A100_40: {
+            "models": [
+                {"name": "qwen2.5-32b", "model_id": "qwen2.5-32b", "gpus": "0", "port": 8000}
+            ],
+            "context": 32768,
+            "cost": 1.50
+        },
         DeploymentMode.NVIDIA_CONSUMER: {
             "models": [
                 {"name": "qwen2.5-32b", "model_id": "qwen2.5-32b", "gpus": "0", "port": 8000}
@@ -296,11 +347,25 @@ def get_deployment_config(mode: DeploymentMode, gpus: List[GPUInfo]) -> Deployme
             "context": 32768,
             "cost": 0.0
         },
+        DeploymentMode.NVIDIA_SMALL: {
+            "models": [
+                {"name": "qwen2.5-7b", "model_id": "qwen2.5-7b", "gpus": "0", "port": 8000}
+            ],
+            "context": 16384,
+            "cost": 0.0
+        },
+        DeploymentMode.NVIDIA_TINY: {
+            "models": [
+                {"name": "qwen2.5-3b", "model_id": "qwen2.5-3b", "gpus": "0", "port": 8000}
+            ],
+            "context": 8192,
+            "cost": 0.0
+        },
         DeploymentMode.LOCAL_SMALL: {
             "models": [
                 {"name": "phi-3-mini", "model_id": "phi-3-mini", "gpus": "0", "port": 8000}
             ],
-            "context": 8192,
+            "context": 4096,
             "cost": 0.0
         }
     }
