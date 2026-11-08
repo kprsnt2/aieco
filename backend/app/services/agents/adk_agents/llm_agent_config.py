@@ -55,7 +55,7 @@ class LlmAgentConfig(BaseAgentConfig):
       default=None,
       description=(
           'Optional. LlmAgent.model. Provide a model name string (e.g.'
-          ' "gemini-2.0-flash"). If not set, the model will be inherited from'
+          ' "gemini-flash-latest"). If not set, the model will be inherited from'
           ' the ancestor. To construct a model instance from code, use'
           ' model_code.'
       ),
