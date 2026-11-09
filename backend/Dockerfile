@@ -49,9 +49,6 @@ COPY --chown=aieco:aieco alembic/ ./alembic/
 RUN mkdir -p /app/logs /app/data /app/skills && \
     chown -R aieco:aieco /app
 
-# Copy skills if they exist
-COPY --chown=aieco:aieco ../skills/ ./skills/ 2>/dev/null || true
-
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

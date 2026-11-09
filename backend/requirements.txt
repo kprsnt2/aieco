@@ -33,7 +33,7 @@ markdown==3.5.2
 beautifulsoup4==4.12.3
 
 # ===== Observability =====
-langfuse==2.8.1
+langfuse==2.8.0
 prometheus-client==0.19.0
 structlog==24.1.0
 
