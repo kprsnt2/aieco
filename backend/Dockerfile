@@ -42,8 +42,6 @@ WORKDIR /app
 
 # Copy application code
 COPY --chown=aieco:aieco app/ ./app/
-COPY --chown=aieco:aieco alembic.ini ./
-COPY --chown=aieco:aieco alembic/ ./alembic/
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data /app/skills && \
